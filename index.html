@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
-    <title>近现代史 - 智能复习系统 V15.0 (Pro版)</title>
+    <title>近现代史 - 智能复习系统 V16.1 (自动同步修复版)</title>
     <style>
       :root {
         /* 亮色模式变量 */
@@ -86,11 +86,31 @@
         font-weight: 800;
         color: var(--primary);
         text-align: center;
-        margin-bottom: 15px;
+        margin-bottom: 10px;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
+      }
+      
+      /* 倒计时样式 */
+      .countdown-box {
+        background: linear-gradient(135deg, #4f46e5, #ec4899);
+        color: white;
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+        margin-bottom: 15px;
+        font-size: 0.9rem;
+        box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
+        cursor: pointer;
+      }
+      .countdown-num {
+        font-size: 1.4rem;
+        font-weight: 800;
+        margin: 0 4px;
+        text-decoration: underline;
+        text-underline-offset: 4px;
       }
 
       .mod-tabs {
@@ -141,6 +161,12 @@
       
       .random-btn { color: var(--success); }
       .random-btn.active { background: var(--success); color: white; }
+      
+      .star-tab-btn { color: #f59e0b; }
+      .star-tab-btn.active { background: #f59e0b; color: white; }
+
+      .mock-btn { color: #8b5cf6; }
+      .mock-btn.active { background: #8b5cf6; color: white; }
 
       .chapter-list {
         flex: 1;
@@ -227,7 +253,21 @@
         gap: 10px;
         z-index: 20;
         border-bottom: 1px solid var(--border-color);
+        position: relative;
       }
+      
+      /* 模拟考试专用计时条 */
+      .exam-timer-bar {
+        display: none;
+        background: #1e293b;
+        color: white;
+        padding: 8px 15px;
+        justify-content: space-between;
+        align-items: center;
+        font-variant-numeric: tabular-nums;
+        font-weight: bold;
+      }
+      .exam-timer-bar.active { display: flex; }
 
       .nav-row {
         display: flex;
@@ -330,6 +370,7 @@
       
       .card.material-mode { border-left: 5px solid #8b5cf6; }
       .card.wrong-mode { border-left: 5px solid var(--error); }
+      .card.fav-mode { border-left: 5px solid #f59e0b; }
 
       .q-header {
         display: flex;
@@ -346,6 +387,18 @@
         background: var(--bg-body);
         color: var(--text-sub);
         border: 1px solid var(--border-color);
+      }
+      
+      .star-icon {
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #cbd5e1;
+        transition: 0.2s;
+        margin-left: 10px;
+      }
+      .star-icon.active {
+        color: #f59e0b;
+        transform: scale(1.2);
       }
 
       .q-content {
@@ -483,6 +536,7 @@
       .btn-primary { background: var(--primary); color: white; flex: 2; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2); }
       .btn-knowledge { background: var(--warning); color: white; flex: 2; }
       .btn-wrong { background: var(--error); color: white; flex: 2; }
+      .btn-exam-submit { background: #8b5cf6; color: white; flex: 2; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3); }
 
       .tool-row {
         display: flex;
@@ -595,6 +649,15 @@
       <div class="sidebar-header">
         <div class="app-brand">⚡️ 复习系统 Pro</div>
         
+        <!-- 倒计时模块 -->
+        <div class="countdown-box" onclick="editExamDate()" title="点击修改日期">
+            <div>距离期末考试还有</div>
+            <div style="margin:8px 0">
+                <span class="countdown-num" id="daysLeft">5</span> 天
+            </div>
+            <div style="font-size:0.75rem; opacity:0.9" id="examDateStr">加油！冲刺！</div>
+        </div>
+
         <!-- 模式选择区 -->
         <div class="mode-group">
             <div class="mod-row">
@@ -602,11 +665,20 @@
                 <button class="mod-tab" onclick="switchModule('history')" id="tab-hist">📝 课后练习</button>
             </div>
             <div class="mod-row">
-                <!-- 错题本现在包含数量标签 -->
+                <!-- 错题本 -->
                 <button class="mod-tab special-btn" onclick="switchModule('wrong_book')" id="tab-wrong">
                    ❌ 错题集 <span id="wbCount" style="font-size:0.75rem; margin-left:2px; opacity:0.8">(0)</span>
                 </button>
+                <!-- 收藏夹 -->
+                <button class="mod-tab star-tab-btn" onclick="switchModule('favorites')" id="tab-fav">
+                   ⭐ 收藏夹 <span id="favCount" style="font-size:0.75rem; margin-left:2px; opacity:0.8">(0)</span>
+                </button>
+            </div>
+            <div class="mod-row">
+                <!-- 乱序 -->
                 <button class="mod-tab random-btn" onclick="switchModule('random_drill')" id="tab-random">🔀 乱序刷题</button>
+                <!-- 模拟考试 -->
+                <button class="mod-tab mock-btn" onclick="startMockExam()" id="tab-mock">📝 模拟考试</button>
             </div>
         </div>
       </div>
@@ -672,7 +744,13 @@
 
     <!-- 主界面 -->
     <div class="main-content">
-      <div class="top-nav">
+      <!-- 模拟考试计时条 -->
+      <div class="exam-timer-bar" id="examTimerBar">
+          <div>⏳ 距离交卷还有：<span id="examCountdown" style="color:#fbbf24; font-size:1.2rem">45:00</span></div>
+          <button style="background:#ef4444; border:none; color:white; padding:4px 12px; border-radius:4px; cursor:pointer" onclick="submitMockExam()">📥 提前交卷</button>
+      </div>
+
+      <div class="top-nav" id="normalTopNav">
         <div class="nav-row">
           <div style="display: flex; align-items: center; overflow: hidden; gap:10px; flex:1">
             <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
@@ -711,7 +789,7 @@
         </div>
       </div>
 
-      <div class="tool-row">
+      <div class="tool-row" id="toolRow">
         <button class="text-link" onclick="toggleAns()">👁️ 显示/隐藏答案</button>
         <span id="scoreText" style="font-size: 0.85rem; color: var(--text-sub)"></span>
       </div>
@@ -735,10 +813,12 @@
         postgrad: { name: "考研真题", data: [], prefix: "pg_" },
         history: { name: "课后练习", data: [], prefix: "hist_" },
         wrong_book: { name: "错题集", data: [], prefix: "wb_" },
-        random_drill: { name: "乱序刷题", data: [], prefix: "rd_" }
+        random_drill: { name: "乱序刷题", data: [], prefix: "rd_" },
+        favorites: { name: "收藏夹", data: [], prefix: "fav_" },
+        mock_exam: { name: "全真模拟考试", data: [], prefix: "mock_" }
       };
 
-      const BUILTIN_API_KEY = "sk-60ffb14cd765472bb2de892c632ad0dc"; // 通义灵码备用
+      const BUILTIN_API_KEY = "sk-60ffb14cd765472bb2de892c632ad0dc"; 
 
       let curMod = localStorage.getItem("last_mod") || "postgrad";
       let allData = [];
@@ -749,11 +829,18 @@
       let filterType = "all";
       let userSel = new Set(); 
       let wrongSet = new Set();
+      let favoriteSet = new Set();
+      
+      // 模拟考试相关
+      let isExamMode = false;
+      let examTimer = null;
+      let examSeconds = 45 * 60;
 
       // === 初始化 ===
       window.onload = async () => {
         try {
           initDarkMode();
+          initCountdown();
 
           const [res1, res2] = await Promise.allSettled([
             fetch("./questions.json").then((r) => r.json()),
@@ -766,8 +853,12 @@
           assignIds(modules.postgrad.data, "pg");
           assignIds(modules.history.data, "hist");
 
-          // 加载错题并清洗无效ID
-          loadAndCleanWrongBook();
+          // 加载错题和收藏
+          loadAndCleanSets();
+          
+          // === 自动同步修复 ===
+          // 检测所有章节进度，如果有错题但没在错题本里，自动加回去
+          syncWrongBookFromProgress();
 
           switchModule(curMod);
         } catch (e) {
@@ -775,40 +866,137 @@
           alert("数据加载失败，请检查 questions.json 文件是否存在。");
         }
       };
+      
+      // === 错题同步修复功能 ===
+      function syncWrongBookFromProgress() {
+        let hasUpdates = false;
+        
+        // 辅助函数：扫描一个模块的所有章节
+        const processModule = (modKey) => {
+            const mod = modules[modKey];
+            if (!mod || !mod.data) return;
+            
+            // 按章节分组，以便匹配 localStorage 的存储结构
+            const chapMap = {};
+            mod.data.forEach(q => {
+                if (!chapMap[q.chapter]) chapMap[q.chapter] = [];
+                chapMap[q.chapter].push(q);
+            });
+            
+            // 遍历所有章节
+            for (const [chapName, qList] of Object.entries(chapMap)) {
+                const key = mod.prefix + chapName;
+                const savedJson = localStorage.getItem(key);
+                if (!savedJson) continue;
+                
+                try {
+                    const saved = JSON.parse(savedJson);
+                    // 遍历该章节的每道题
+                    qList.forEach((q, i) => {
+                        // saved[i] 对应 qList[i]
+                        if (saved[i] && saved[i].done) {
+                             // 构造临时对象来复用 getQuestionStatus 判分逻辑
+                             const tempQ = { 
+                                 ...q, 
+                                 isSubmitted: true, 
+                                 userSel: new Set(saved[i].sel || []) 
+                             };
+                             
+                             // 只同步选择题
+                             if (q.type && q.type.includes("选")) {
+                                 const status = getQuestionStatus(tempQ);
+                                 // 如果判分为错或半对，且不在错题本里，加进去
+                                 if (status === 'wrong' || status === 'partial') {
+                                     if (!wrongSet.has(q._uid)) {
+                                         wrongSet.add(q._uid);
+                                         hasUpdates = true;
+                                     }
+                                 }
+                             }
+                        }
+                    });
+                } catch (e) { console.error("Sync error", e); }
+            }
+        };
 
-      // 错题本数据加载与清洗
-      function loadAndCleanWrongBook() {
-          const saved = localStorage.getItem("wrong_questions");
-          if (saved) {
-              const tempSet = new Set(JSON.parse(saved));
-              
-              // 构建所有有效ID的集合
-              const allIds = new Set();
-              [...modules.postgrad.data, ...modules.history.data].forEach(q => allIds.add(q._uid));
-              
-              wrongSet = new Set();
-              tempSet.forEach(id => {
-                  if (allIds.has(id)) wrongSet.add(id);
-              });
-              
-              // 如果有变动（清洗了无效ID），更新存储
-              if (wrongSet.size !== tempSet.size) {
-                  localStorage.setItem("wrong_questions", JSON.stringify(Array.from(wrongSet)));
-                  console.log(`自动清理了 ${tempSet.size - wrongSet.size} 条无效错题记录`);
-              }
+        processModule('postgrad');
+        processModule('history');
+        
+        if (hasUpdates) {
+            localStorage.setItem("wrong_questions", JSON.stringify(Array.from(wrongSet)));
+            updateCounts();
+            console.log("已自动从做题进度中同步恢复错题。");
+        }
+      }
+      
+      // === 倒计时功能 ===
+      function initCountdown() {
+          const storedDate = localStorage.getItem("exam_date");
+          let targetDate;
+          if (storedDate) {
+              targetDate = new Date(storedDate);
+          } else {
+              targetDate = new Date();
+              targetDate.setDate(targetDate.getDate() + 5); // 默认5天后
           }
-          updateWrongBookCount();
+          updateCountdownDisplay(targetDate);
+      }
+      
+      function updateCountdownDisplay(targetDate) {
+          const now = new Date();
+          // 设置为当天的 00:00:00 进行比较，或者直接算时间差
+          targetDate.setHours(0,0,0,0);
+          const today = new Date();
+          today.setHours(0,0,0,0);
+          
+          const diffTime = targetDate - today;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          
+          document.getElementById("daysLeft").innerText = diffDays > 0 ? diffDays : 0;
+          document.getElementById("examDateStr").innerText = `考试日期: ${targetDate.getFullYear()}-${targetDate.getMonth()+1}-${targetDate.getDate()}`;
+          
+          localStorage.setItem("exam_date", targetDate.toISOString());
+      }
+      
+      window.editExamDate = function() {
+          const cur = localStorage.getItem("exam_date");
+          const dateStr = cur ? cur.slice(0, 10) : new Date().toISOString().slice(0, 10);
+          const input = prompt("请设置考试日期 (格式: YYYY-MM-DD)", dateStr);
+          if (input && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
+              updateCountdownDisplay(new Date(input));
+          }
       }
 
-      function updateWrongBookCount() {
-          const count = wrongSet.size;
-          const el = document.getElementById("wbCount");
-          if(el) el.innerText = `(${count})`;
+      // 错题本和收藏夹数据加载
+      function loadAndCleanSets() {
+          const wSaved = localStorage.getItem("wrong_questions");
+          const fSaved = localStorage.getItem("favorite_questions");
           
-          // 如果当前在错题本界面，且错题被清空，刷新界面
-          if(curMod === 'wrong_book' && count === 0 && rawList.length > 0) {
-              loadWrongBook();
+          // 构建所有有效ID
+          const allIds = new Set();
+          [...modules.postgrad.data, ...modules.history.data].forEach(q => allIds.add(q._uid));
+          
+          // 清洗错题
+          wrongSet = new Set();
+          if (wSaved) {
+              JSON.parse(wSaved).forEach(id => { if (allIds.has(id)) wrongSet.add(id); });
           }
+          
+          // 清洗收藏
+          favoriteSet = new Set();
+          if (fSaved) {
+              JSON.parse(fSaved).forEach(id => { if (allIds.has(id)) favoriteSet.add(id); });
+          }
+          
+          updateCounts();
+      }
+
+      function updateCounts() {
+          const wEl = document.getElementById("wbCount");
+          if(wEl) wEl.innerText = `(${wrongSet.size})`;
+          
+          const fEl = document.getElementById("favCount");
+          if(fEl) fEl.innerText = `(${favoriteSet.size})`;
       }
 
       function assignIds(data, prefix) {
@@ -845,21 +1033,39 @@
 
       // === 模块逻辑 ===
       function switchModule(key) {
+        if (isExamMode && key !== 'mock_exam') {
+            if(!confirm("正在考试中，切换模式将自动交卷，确定吗？")) return;
+            endExamMode();
+        }
+        
         curMod = key;
         localStorage.setItem("last_mod", key);
 
         document.querySelectorAll('.mod-tab').forEach(btn => btn.classList.remove('active'));
         if(key === 'wrong_book') document.getElementById('tab-wrong').classList.add('active');
+        else if(key === 'favorites') document.getElementById('tab-fav').classList.add('active');
         else if(key === 'random_drill') document.getElementById('tab-random').classList.add('active');
+        else if(key === 'mock_exam') document.getElementById('tab-mock').classList.add('active');
         else if(key === 'postgrad') document.getElementById('tab-pg').classList.add('active');
         else document.getElementById('tab-hist').classList.add('active');
 
-        document.getElementById("continueBtn").style.display = "none"; // 默认隐藏继续按钮
+        document.getElementById("continueBtn").style.display = "none";
+        
+        // 确保顶部导航栏恢复正常
+        document.getElementById("examTimerBar").classList.remove("active");
+        document.getElementById("normalTopNav").style.display = "flex";
+        document.getElementById("toolRow").style.display = "flex";
 
         if (key === 'wrong_book') {
             loadWrongBook();
+        } else if (key === 'favorites') {
+            loadFavorites();
         } else if (key === 'random_drill') {
             loadRandomDrill();
+        } else if (key === 'mock_exam') {
+            // 注意：switchModule只是切换UI高亮，startMockExam才是真正开始逻辑
+            // 如果用户点击侧边栏按钮，应该触发startMockExam
+            // 这里为了防止递归调用，不做处理，startMockExam会自己处理
         } else {
             allData = modules[key].data;
             curChapter = "";
@@ -879,34 +1085,36 @@
       function loadWrongBook() {
         const pool = [...modules.postgrad.data, ...modules.history.data];
         rawList = pool.filter(q => wrongSet.has(q._uid));
+        rawList.forEach(q => { q.isSubmitted = false; q.userSel = new Set(); });
         
-        // 恢复进度状态 (在错题本里也要显示之前做过的状态)
-        rawList.forEach(q => {
-             q.isSubmitted = false; // 错题本每次进来默认重新做
-             q.userSel = new Set();
-        });
-
         document.getElementById("chapterList").innerHTML = 
             `<div style="padding:15px; color:var(--text-sub); text-align:center">
                 共收集错题 <strong>${rawList.length}</strong> 道
              </div>`;
-        
         curChapter = "错题本";
         setFilter('all');
-        
-        if(rawList.length === 0) {
-            document.getElementById("qContainer").innerHTML = 
-                `<div style="text-align:center; margin-top:100px; color:var(--success);">
-                    🎉 太棒了！没有错题！<br>去普通章节刷题吧~
-                 </div>`;
-        }
+        if(rawList.length === 0) showEmptyState("🎉 太棒了！没有错题！");
+      }
+      
+      function loadFavorites() {
+        const pool = [...modules.postgrad.data, ...modules.history.data];
+        rawList = pool.filter(q => favoriteSet.has(q._uid));
+        // 收藏夹里的题，保留做题记录也没关系，或者是重置？为了复习，默认重置
+        rawList.forEach(q => { q.isSubmitted = false; q.userSel = new Set(); });
+
+        document.getElementById("chapterList").innerHTML = 
+            `<div style="padding:15px; color:var(--text-sub); text-align:center">
+                共收藏重点 <strong>${rawList.length}</strong> 道
+             </div>`;
+        curChapter = "我的收藏";
+        setFilter('all');
+        if(rawList.length === 0) showEmptyState("📂 收藏夹是空的<br>遇到重点题记得点星星收藏哦");
       }
 
       function loadRandomDrill() {
         let pool = [...modules.postgrad.data, ...modules.history.data]
             .filter(q => q.type && q.type.includes("选"));
         
-        // 洗牌算法
         for (let i = pool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -919,12 +1127,133 @@
              </div>`;
         
         curChapter = "乱序刷题";
-        rawList.forEach(q => {
-            q.userSel = new Set();
-            q.isSubmitted = false;
-        });
-        
+        rawList.forEach(q => { q.userSel = new Set(); q.isSubmitted = false; });
         setFilter('all');
+      }
+      
+      function showEmptyState(msg) {
+          document.getElementById("qContainer").innerHTML = 
+                `<div style="text-align:center; margin-top:100px; color:var(--text-sub);">
+                    ${msg}
+                 </div>`;
+      }
+
+      // === 模拟考试逻辑 ===
+      window.startMockExam = function() {
+          if (isExamMode) return;
+          if(!confirm("即将开始全真模拟考试：\n\n1. 包含30道单选、10道多选、5道大题\n2. 限时45分钟\n3. 中途不能看答案\n\n准备好了吗？")) return;
+          
+          isExamMode = true;
+          switchModule('mock_exam'); // 切换UI
+          
+          // 1. 抽题
+          const pool = [...modules.postgrad.data, ...modules.history.data];
+          const singles = pool.filter(q => q.type && q.type.includes("单选"));
+          const multis = pool.filter(q => q.type && q.type.includes("多选"));
+          const others = pool.filter(q => !q.type || (!q.type.includes("单选") && !q.type.includes("多选") && q.type !== "知识点"));
+          
+          const examList = [];
+          
+          // 随机抽
+          function pick(arr, count) {
+              const res = [];
+              const indices = new Set();
+              while(res.length < count && indices.size < arr.length) {
+                  const idx = Math.floor(Math.random() * arr.length);
+                  if(!indices.has(idx)) {
+                      indices.add(idx);
+                      // 深拷贝题目对象，以免污染原题状态
+                      const q = JSON.parse(JSON.stringify(arr[idx]));
+                      // 确保 _uid 还在
+                      q._uid = arr[idx]._uid; 
+                      q.userSel = new Set();
+                      q.isSubmitted = false;
+                      res.push(q);
+                  }
+              }
+              return res;
+          }
+          
+          examList.push(...pick(singles, 30));
+          examList.push(...pick(multis, 10));
+          examList.push(...pick(others, 5));
+          
+          rawList = examList;
+          filteredList = examList;
+          curIndex = 0;
+          curChapter = "全真模拟考试";
+          
+          // 2. UI 调整
+          document.getElementById("chapterList").innerHTML = 
+            `<div style="padding:15px; color:var(--text-sub); text-align:center">
+                📝 考试进行中...<br>共 <strong>${rawList.length}</strong> 道题
+             </div>`;
+             
+          document.getElementById("normalTopNav").style.display = "none";
+          document.getElementById("examTimerBar").classList.add("active");
+          document.getElementById("toolRow").style.display = "none"; // 隐藏答案按钮
+          
+          // 3. 启动计时器
+          examSeconds = 45 * 60;
+          updateTimerDisplay();
+          examTimer = setInterval(() => {
+              examSeconds--;
+              updateTimerDisplay();
+              if (examSeconds <= 0) {
+                  submitMockExam(true);
+              }
+          }, 1000);
+          
+          renderQ();
+      };
+      
+      function updateTimerDisplay() {
+          const m = Math.floor(examSeconds / 60).toString().padStart(2, '0');
+          const s = (examSeconds % 60).toString().padStart(2, '0');
+          const el = document.getElementById("examCountdown");
+          el.innerText = `${m}:${s}`;
+          if(examSeconds < 300) el.style.color = "#ef4444"; // 最后5分钟变红
+      }
+      
+      window.submitMockExam = function(force = false) {
+          if (!force && !confirm("确定要交卷吗？交卷后将显示分数和解析。")) return;
+          
+          endExamMode();
+          
+          // 算分逻辑
+          let score = 0;
+          let totalScore = 0;
+          // 假设单选2分，多选3分，其他5分
+          rawList.forEach(q => {
+              // 模拟考试交卷时，统一把题目设为 submitted
+              q.isSubmitted = true;
+              
+              if (q.type.includes("单选")) {
+                  totalScore += 2;
+                  if (getQuestionStatus(q) === 'correct') score += 2;
+              } else if (q.type.includes("多选")) {
+                  totalScore += 3;
+                  if (getQuestionStatus(q) === 'correct') score += 3;
+                  else if (getQuestionStatus(q) === 'partial') score += 1;
+              } else {
+                  totalScore += 5;
+                  // 主观题没法自动判分，默认算对或者不算分，这里仅展示
+              }
+          });
+          
+          // 恢复UI
+          document.getElementById("normalTopNav").style.display = "flex";
+          document.getElementById("toolRow").style.display = "flex";
+          document.getElementById("examTimerBar").classList.remove("active");
+          
+          alert(`考试结束！\n\n客观题得分预估：${score} / ${totalScore} (不含主观题)\n\n现在您可以查看所有解析了。`);
+          
+          setFilter('all'); // 刷新列表状态
+      };
+      
+      function endExamMode() {
+          if (examTimer) clearInterval(examTimer);
+          isExamMode = false;
       }
 
       function initSidebar() {
@@ -947,12 +1276,10 @@
             div.className = "chapter-item";
             if (cName === curChapter) div.classList.add("active");
             
-            // 章节标题行
             const topRow = document.createElement("div");
             topRow.className = "chap-row-top";
             topRow.innerHTML = `<span>${cName}</span><span class="badge-pill">${done}/${total}</span>`;
             
-            // 进度条行
             const progressTrack = document.createElement("div");
             progressTrack.className = "progress-track";
             const progressFill = document.createElement("div");
@@ -975,7 +1302,6 @@
         const key = modules[curMod].prefix + cName;
         const saved = JSON.parse(localStorage.getItem(key) || "[]");
         
-        // 恢复进度
         rawList.forEach((q, i) => {
           if (saved[i]) {
             q.userSel = new Set(saved[i].sel || []);
@@ -988,7 +1314,7 @@
 
         setFilter(filterType);
         initSidebar();
-        updateContinueBtn(); // 更新"继续刷题"按钮
+        updateContinueBtn(); 
         
         if (window.innerWidth <= 768) {
              document.getElementById("sidebar").classList.remove("open");
@@ -1001,7 +1327,7 @@
           const btn = document.getElementById("continueBtn");
           const countSpan = document.getElementById("unfinishedCount");
           
-          if(unfinishedCount > 0 && curMod !== 'wrong_book' && curMod !== 'random_drill') {
+          if(unfinishedCount > 0 && curMod !== 'wrong_book' && curMod !== 'random_drill' && curMod !== 'favorites') {
               btn.style.display = "flex";
               countSpan.innerText = unfinishedCount;
           } else {
@@ -1068,7 +1394,6 @@
 
         sel.disabled = false;
         
-        // 关键优化：根据保存的状态初始化下拉框标记
         filteredList.forEach((q, i) => {
           const status = getQuestionStatus(q);
           let mark = "";
@@ -1079,8 +1404,6 @@
           sel.add(new Option(`${i + 1}. ${shorten(q.content)}${mark}`, i));
         });
 
-        // 默认不自动跳转，除非是刚加载章节
-        // 这里逻辑保持不变，或者如果当前curIndex越界了则重置
         if(curIndex >= filteredList.length) curIndex = 0;
         
         renderQ();
@@ -1095,8 +1418,16 @@
         if (!filteredList.length) return;
         const q = filteredList[curIndex];
 
-        document.getElementById("headerTitle").innerText = curChapter;
-        document.getElementById("qJumper").value = curIndex;
+        // 考试模式下，下拉框禁用跳转，或者只允许跳转（但不显示答案状态）
+        if (isExamMode) {
+            document.getElementById("headerTitle").innerText = `模拟考: 第 ${curIndex + 1} / ${filteredList.length} 题`;
+        } else {
+            document.getElementById("headerTitle").innerText = curChapter;
+            document.getElementById("qJumper").value = curIndex;
+        }
+        
+        // 恢复用户选择（如果是Set对象则保留，如果是数组则转换）
+        if (!(q.userSel instanceof Set)) q.userSel = new Set(q.userSel || []);
         userSel = new Set(q.userSel);
 
         const container = document.getElementById("qContainer");
@@ -1106,31 +1437,43 @@
         let btnClass = "btn btn-primary";
 
         if (curMod === 'wrong_book') cardClass += " wrong-mode";
+        else if (curMod === 'favorites') cardClass += " fav-mode";
         else if (q.type === "知识点") {
             cardClass += " knowledge-mode";
             btnText = q.isSubmitted ? "已背熟" : "👌 记住了";
             btnClass = "btn btn-knowledge";
         } else if (q.type === "材料题") cardClass += " material-mode";
 
-        if (q.isSubmitted && q.type !== "知识点") {
-          btnText = curIndex < filteredList.length - 1 ? "下一题 ➡️" : "完成本章";
+        // 考试模式下，按钮只有下一题，没有“提交”
+        if (isExamMode) {
+            btnText = curIndex < filteredList.length - 1 ? "下一题 ➡️" : "完成 (请点击顶部交卷)";
+            btnClass = "btn btn-secondary"; 
+            if(curIndex === filteredList.length - 1) btnClass = "btn btn-exam-submit";
+        } else {
+            if (q.isSubmitted && q.type !== "知识点") {
+               btnText = curIndex < filteredList.length - 1 ? "下一题 ➡️" : "完成本章";
+            }
         }
 
         const mBtn = document.getElementById("mainBtn");
         mBtn.innerText = btnText;
         mBtn.className = btnClass;
+        
+        // 考试模式点击主按钮逻辑不同
+        mBtn.onclick = isExamMode ? function() { move(1); } : handleMainAction;
 
         let bodyHtml = "";
         
-        // 状态徽章
+        // 状态徽章 (考试模式不显示)
         let statusBadge = "";
-        if(q.isSubmitted && q.type !== "知识点" && q.type !== "材料题" && q.type !== "简答题") {
+        if(!isExamMode && q.isSubmitted && q.type !== "知识点" && q.type !== "材料题" && q.type !== "简答题") {
             const status = getQuestionStatus(q);
             if(status === "wrong") statusBadge = `<div class="status-badge status-wrong">❌ 回答错误</div>`;
             else if (status === "partial") statusBadge = `<div class="status-badge status-partial">⚠️ 漏选（算半对）</div>`;
             else statusBadge = `<div class="status-badge status-correct">✅ 回答正确</div>`;
         }
 
+        // 选项渲染
         if (q.type === "知识点") {
           bodyHtml = `<div style="font-size:1.1rem; line-height:1.8; color:var(--text-main); font-weight:500">${q.content}</div>`;
         } else if (q.options && q.options.length > 0) {
@@ -1139,16 +1482,22 @@
                   let cls = "opt-row";
                   const correctSet = new Set((q.answer || "").toUpperCase().split(""));
                   
-                  if (q.isSubmitted) {
-                    if (correctSet.has(opt.label)) {
-                        cls += " correct";
-                        if (!userSel.has(opt.label)) cls += " missed";
-                    } else if (userSel.has(opt.label)) {
-                        cls += " wrong";
-                    }
+                  // 考试模式只显示选中状态，不显示对错
+                  if (isExamMode) {
+                      if (userSel.has(opt.label)) cls += " selected";
                   } else {
-                    if (userSel.has(opt.label)) cls += " selected";
+                      if (q.isSubmitted) {
+                        if (correctSet.has(opt.label)) {
+                            cls += " correct";
+                            if (!userSel.has(opt.label)) cls += " missed";
+                        } else if (userSel.has(opt.label)) {
+                            cls += " wrong";
+                        }
+                      } else {
+                        if (userSel.has(opt.label)) cls += " selected";
+                      }
                   }
+                  
                   return `
                  <div class="${cls}" onclick="handleOpt('${opt.label}')">
                    <div class="opt-idx">${opt.label}</div>
@@ -1161,20 +1510,28 @@
               (请在心中作答，然后点击提交查看参考答案)
             </div>`;
         }
+        
+        // 收藏状态
+        const isFav = favoriteSet.has(q._uid);
+        const starHtml = `<span class="star-icon ${isFav ? 'active' : ''}" onclick="toggleFav('${q._uid}')">${isFav ? '⭐' : '☆'}</span>`;
 
-        const showAiBtn = q.isSubmitted && q.type !== "知识点";
+        const showAiBtn = !isExamMode && q.isSubmitted && q.type !== "知识点";
         const showRemoveBtn = curMod === 'wrong_book'; 
 
         container.innerHTML = `
           <div class="${cardClass}">
              <div class="q-header">
-                <span class="q-type">${q.type || "题目"}</span>
+                <div>
+                    <span class="q-type">${q.type || "题目"}</span>
+                    ${starHtml}
+                </div>
                 <span style="font-size:0.8rem; color:var(--text-sub)">${curIndex + 1} / ${filteredList.length}</span>
              </div>
              ${q.type !== "知识点" ? `<div class="q-content">${q.content}</div>` : ""}
              ${bodyHtml}
              
-             <div class="answer-section ${q.isSubmitted ? "show" : ""}" id="ansPanel">
+             <!-- 考试模式下隐藏答案区，直到交卷 -->
+             <div class="answer-section ${(!isExamMode && q.isSubmitted) ? "show" : ""}" id="ansPanel">
                 ${statusBadge}
                 <div style="margin-bottom:10px;">
                    <span style="font-weight:bold; color:var(--text-main)">参考答案：</span>
@@ -1199,10 +1556,26 @@
           </div>
         `;
       }
+      
+      // === 收藏逻辑 ===
+      window.toggleFav = function(uid) {
+          if (favoriteSet.has(uid)) {
+              favoriteSet.delete(uid);
+          } else {
+              favoriteSet.add(uid);
+          }
+          localStorage.setItem("favorite_questions", JSON.stringify(Array.from(favoriteSet)));
+          updateCounts();
+          
+          // 如果当前在收藏夹模式下，取消收藏需要刷新列表吗？为了体验，暂时只改图标，不强制刷新
+          // 但下次进来会消失
+          renderQ(); // 重新渲染以更新星星状态
+      };
 
       window.handleOpt = function (label) {
         const q = filteredList[curIndex];
-        if (q.isSubmitted) return;
+        // 考试模式下允许反复修改，直到交卷；普通模式下提交后不可改
+        if (!isExamMode && q.isSubmitted) return;
 
         const isMulti = (q.type && q.type.includes("多")) || (q.answer && q.answer.length > 1);
         if (isMulti) {
@@ -1229,19 +1602,20 @@
                   if(!wrongSet.has(q._uid)) {
                       wrongSet.add(q._uid);
                       localStorage.setItem("wrong_questions", JSON.stringify(Array.from(wrongSet)));
-                      updateWrongBookCount();
+                      updateCounts();
                   }
               }
           }
 
-          if(curMod !== 'random_drill' && curMod !== 'wrong_book') {
+          if(['random_drill', 'wrong_book', 'favorites', 'mock_exam'].indexOf(curMod) === -1) {
               saveProgress();
               initSidebar();
-              updateContinueBtn(); // 提交后更新"继续"按钮状态
+              updateContinueBtn(); 
           }
           
           renderQ();
           
+          // 更新下拉框状态
           const status = getQuestionStatus(q);
           let mark = "";
           if (status === 'correct') mark = " ✅";
@@ -1257,7 +1631,7 @@
           if(confirm("确定已掌握这道题并将其移出错题本吗？")) {
               wrongSet.delete(uid);
               localStorage.setItem("wrong_questions", JSON.stringify(Array.from(wrongSet)));
-              updateWrongBookCount();
+              updateCounts();
               loadWrongBook(); 
           }
       };
@@ -1288,7 +1662,7 @@
           q.isSubmitted = false;
           q.userSel = new Set();
         });
-        if(curMod !== 'random_drill' && curMod !== 'wrong_book') {
+        if(['random_drill', 'wrong_book', 'favorites', 'mock_exam'].indexOf(curMod) === -1) {
             saveProgress();
             loadChapter(curChapter);
         } else {
